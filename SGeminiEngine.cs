@@ -1,16 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using GenerativeAI;
-using GenerativeAI.Clients;
 using GenerativeAI.Types;
-using xSophBot.bot.conf;
-using xSophBot.bot.logs;
+using xSophBot.conf;
 
-namespace xSophBot.bot.ai
+
+namespace xSophBot
 {
-    public class xSGeminiEngine
+    public class SGeminiEngine
     {
 #pragma warning disable CS8618
         private static ChatSession Session;
@@ -19,7 +14,7 @@ namespace xSophBot.bot.ai
 
         public static async Task StartSession()
         {
-            GoogleAI = new GoogleAi(xSConfig.AI.GeminiKey);
+            GoogleAI = new GoogleAi(SConfig.AI.GeminiKey);
 
             var model = GoogleAI.CreateGenerativeModel("models/gemini-2.5-flash");
 
@@ -33,7 +28,8 @@ namespace xSophBot.bot.ai
                 ThinkingConfig = thinkConf
             };
 
-            string SystemInstructions = xSConfig.AI.SystemInstructions;
+            string SystemInstructions = SConfig.AI.SystemInstructions;
+
 
             Session = model.StartChat(config: genConf, systemInstruction: SystemInstructions);
         }

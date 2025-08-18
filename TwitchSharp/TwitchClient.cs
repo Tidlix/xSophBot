@@ -1,53 +1,56 @@
-using System.Net.Sockets;
-using System.Runtime.InteropServices.JavaScript;
+using System.Net;
 using System.Text.Json;
-using Microsoft.Extensions.Logging;
-using TwitchSharp.Entitys;
+using TwitchSharp.Events;
+using TwitchSharp.Items;
 
 namespace TwitchSharp
 {
     public class TwitchClient
     {
+        private string UserAccessToken { get; set; }
+        private string AppAccessToken { get; set; }
+        private string RefreshToken { get; set; }
+        private string Redirect_uri { get; set; }
+        private string[] Scopes { get; set; }
         public string ClientID { get; private set; }
-        public LogSystem Logging { get; private set; }
+        public string ClientSecret { get; private set; }
         public TwitchUser CurrentUser { get; private set; }
 
-        private string clientSecret { get; set; }
-        private string appToken { get; set; }
-        private string userToken { get; set; }
-        private string refreshToken { get; set; }
-        private TcpClient ircClient { get; set; }
-        private StreamReader reader { get; set; }
-        private StreamWriter writer { get; set; }
+        public EventEngine EventEngine { get; private set; }
 
-        #region Initalization/Tokens
 
 #pragma warning disable CS8618
-        public TwitchClient(string client_id, string client_secret, string refresh_token)
+        public TwitchClient(ClientConfig config)
         {
-            Logging = new LogSystem();
-            try
-            {
-                ClientID = client_id;
-                clientSecret = client_secret;
-                refreshToken = refresh_token;
+            ClientID = config.ClientID;
+            ClientSecret = config.ClientSecret;
+            Redirect_uri = config.Redirect_uri;
+            Scopes = config.Scopes;
 
-                getAppTokenAsnyc().Wait();
-                getUserTokenAsnyc().Wait();
-            }
-            catch (Exception ex)
-            {
-                Logging.SendMessage(ex.Message, LogLevel.Error);
-            }
+            generateAppTokenAsnyc().Wait();
+            generateUserTokenAsnyc().Wait();
+
+            CurrentUser = new TwitchUser(this, config.Username);
+            EventEngine = new EventEngine(this);
         }
 #pragma warning restore CS8618
 
-        /*
-        VALIDATING TOKEN
-        - Token has to be validated before every call
-        - If token is invalid, the token has to be refreshed
-        */
-        private async Task<bool> isTokenValid(string token)
+
+        #region Tokens
+        public string GetAppAccessToken()
+        {
+            if (ValidTokenCheckAsync(AppAccessToken).Result) return AppAccessToken;
+            generateAppTokenAsnyc().Wait();
+            return AppAccessToken;
+        }
+        public string GetUserAccessToken()
+        {
+            if (ValidTokenCheckAsync(UserAccessToken).Result) return UserAccessToken;
+            generateUserTokenAsnyc().Wait();
+            return UserAccessToken;
+        }
+
+        private async Task<bool> ValidTokenCheckAsync(string token)
         {
             token ??= "null";
             using (var httpClient = new HttpClient())
@@ -57,23 +60,14 @@ namespace TwitchSharp
                 return response.IsSuccessStatusCode;
             }
         }
-
-        /*
-        APP ACCESS TOKEN
-        - Getting with "Client credentials grant flow" https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow
-        - Needed for Events
-        - Can be used for sending messages in combination with user token 
-        */
-        public async Task<string> getAppTokenAsnyc()
+        public async Task generateAppTokenAsnyc()
         {
-            if (await isTokenValid(appToken)) return appToken;
-
             using (var httpClient = new HttpClient())
             {
                 Dictionary<string, string> parameters = new()
                 {
                     {"client_id", $"{ClientID}"},
-                    {"client_secret", $"{clientSecret}"},
+                    {"client_secret", $"{ClientSecret}"},
                     {"grant_type", "client_credentials"}
                 };
 
@@ -82,44 +76,64 @@ namespace TwitchSharp
 
                 var response = await httpClient.PostAsync(destination, content);
 
-                string rString = await response.Content.ReadAsStringAsync();
-                JsonElement json = JsonDocument.Parse(rString).RootElement;
-
-                try
+                switch (response.StatusCode)
                 {
-                    string? at = json.GetProperty("access_token").GetString();
-                    if (at == null) throw new Exception(rString);
-                    appToken = at;
-                    return at;
+                    case HttpStatusCode.OK:
+                        JsonElement json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+                        AppAccessToken = json.GetProperty("access_token").GetString()!;
+                        break;
+                    default:
+                        throw new Exception($"An Error occured while trying to generate App Access Token - Status code: {response.StatusCode}");
                 }
-                catch
-                {
-                    int status = json.GetProperty("status").GetInt16();
-                    string message = json.GetProperty("message").GetString()!;
-                    throw new Exception($"Couln't generate app access token! {status} - {message}");
-                }
-
             }
         }
-
-        /*
-        USER ACCESS TOKEN
-        - Getting with "Authorization code grant flow" https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#authorization-code-grant-flow 
-        - Needed for sending messages
-        - Probably used for most tasks?
-        */
-        public async Task<string> getUserTokenAsnyc()
+        public async Task generateUserTokenAsnyc()
         {
-            if (await isTokenValid(userToken)) return userToken;
+            for (int i = 0; i < Scopes.Length; i++) Scopes[i] = Scopes[i].Replace(":", "%3A");
+            string link = $"https://id.twitch.tv/oauth2/authorize?response_type=code&client_id={ClientID}&redirect_uri={Redirect_uri}&scope={string.Join('+', Scopes)}";
+            Console.WriteLine($"[TwitchSharp] Authorization needed: {link}");
+
+            Console.Write("Enter authorization code: ");
+            string code = Console.ReadLine()!;
 
             using (var httpClient = new HttpClient())
             {
                 Dictionary<string, string> parameters = new()
                 {
                     {"client_id", $"{ClientID}"},
-                    {"client_secret", $"{clientSecret}"},
+                    {"client_secret", $"{ClientSecret}"},
+                    {"code", code},
+                    {"grant_type", "authorization_code"},
+                    {"redirect_uri", Redirect_uri}
+                };
+
+                string destination = "https://id.twitch.tv/oauth2/token";
+                var content = new FormUrlEncodedContent(parameters);
+
+                var response = await httpClient.PostAsync(destination, content);
+
+                switch (response.StatusCode)
+                {
+                    case HttpStatusCode.OK:
+                        JsonElement json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+                        UserAccessToken = json.GetProperty("access_token").GetString()!;
+                        RefreshToken = json.GetProperty("refresh_token").GetString()!;
+                        break;
+                    default:
+                        throw new Exception($"An Error occured while trying to generate User Access Token - Status code: {response.StatusCode}");
+                }
+            }
+        }
+        public async Task refreshUserTokenAsnyc()
+        {
+            using (var httpClient = new HttpClient())
+            {
+                Dictionary<string, string> parameters = new()
+                {
+                    {"client_id", $"{ClientID}"},
+                    {"client_secret", $"{ClientSecret}"},
                     {"grant_type", $"refresh_token"},
-                    {"refresh_token", $"{refreshToken}"}
+                    {"refresh_token", $"{RefreshToken}"}
                 };
 
                 string destination = "https://id.twitch.tv/oauth2/token";
@@ -127,129 +141,51 @@ namespace TwitchSharp
 
                 var response = await httpClient.PostAsync(destination, values);
 
-                string rString = await response.Content.ReadAsStringAsync();
-                JsonElement json = JsonDocument.Parse(rString).RootElement;
-
-                try
+                switch (response.StatusCode)
                 {
-                    string? at = json.GetProperty("access_token").GetString();
-                    string? rt = json.GetProperty("refresh_token").GetString();
-                    if (at == null) throw new Exception(rString);
-                    userToken = at;
-                    if (rt == null) throw new Exception(rString);
-                    refreshToken = rt;
-                    return at;
-                }
-                catch
-                {
-                    int status = json.GetProperty("status").GetInt16();
-                    string message = json.GetProperty("message").GetString()!;
-                    throw new Exception($"Couln't generate user access token! {status} - {message}");
+                    case HttpStatusCode.OK:
+                        JsonElement json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+                        UserAccessToken = json.GetProperty("access_token").GetString()!;
+                        RefreshToken = json.GetProperty("refresh_token").GetString()!;
+                        break;
+                    default:
+                        throw new Exception($"An Error occured while trying to refresh User Access Token - Status code: {response.StatusCode}");
                 }
             }
         }
         #endregion
 
-        #region Get stuff
-        public TwitchUser GetTwitchUser(string username) => new TwitchUser(username, this);
-        public TwitchChannel GetTwitchChannel(TwitchUser user) => new TwitchChannel(user, this);
-        public TwitchChannel GetTwitchChannel(string username) => new TwitchChannel(GetTwitchUser(username), this);
-        #endregion
-
-        #region Events
-        public event Action<TwitchClient, TwitchChannel, string> OnMessageReceived;
-
-        // 🔌 Verbindung zum Twitch-Chat (IRC)
-        public async Task ConnectToChatAsync(List<string> channels)
+        #region API
+        public async Task<TwitchMessage> SendMessageAsync(string content, TwitchUser channel, TwitchMessage? replyTo = null)
         {
-            ircClient = new TcpClient("irc.chat.twitch.tv", 6667);
-            var networkStream = ircClient.GetStream();
-            reader = new StreamReader(networkStream);
-            writer = new StreamWriter(networkStream) { NewLine = "\r\n", AutoFlush = true };
-
-            await writer.WriteLineAsync($"PASS oauth:{userToken}");
-            await writer.WriteLineAsync($"NICK {CurrentUser.LoginName}");
-
-            foreach (var channel in channels)
+            using (var httpClient = new HttpClient())
             {
-                await writer.WriteLineAsync($"JOIN #{channel}");
-            }
+                string uri = "https://api.twitch.tv/helix/chat/messages";
 
-            _ = Task.Run(() => ListenForMessages());
-        }
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {GetUserAccessToken()}");
+                httpClient.DefaultRequestHeaders.Add("Client-Id", $"{ClientID}");
 
-        // 📥 Nachrichten lesen und Event feuern
-        private async Task ListenForMessages()
-        {
-            while (ircClient != null && ircClient.Connected)
-            {
-                var line = await reader!.ReadLineAsync();
-                if (line == null) continue;
-                Console.WriteLine(line);
+                Dictionary<string, string> parameters = new();
+                parameters.Add("broadcaster_id", $"{channel.ID}");
+                parameters.Add("sender_id", $"{CurrentUser.ID}");
+                parameters.Add("message", $"{content}");
+                if (replyTo != null)
+                    parameters.Add("reply_parent_message_id", replyTo.ID);
 
-                // Twitch Ping-Pong
-                if (line.StartsWith("PING"))
+                var values = new FormUrlEncodedContent(parameters);
+
+                var response = await httpClient.PostAsync(uri, values);
+
+                if (response.StatusCode == HttpStatusCode.OK)
                 {
-                    await writer!.WriteLineAsync("PONG :tmi.twitch.tv");
-                    continue;
-                }
-                // Nachrichten parsen
-                if (line.Contains("PRIVMSG"))
-                {
-                    var parts = line.Split(' ');
-                    var channel = parts[2].TrimStart('#');
-                    var message = line.Split(" :", 2)[1];
+                    JsonElement json = JsonDocument.Parse(await response.Content.ReadAsStringAsync()).RootElement;
+                    string sended_id = json.GetProperty("data")[0].GetProperty("message_id").GetString()!;
 
-                    OnMessageReceived.Invoke(this, GetTwitchChannel(channel), message);
+                    return new TwitchMessage(this, CurrentUser, channel, content, sended_id);
                 }
+                else throw new Exception($"Couldn't send Message - Status Code {response.StatusCode}");                
             }
         }
         #endregion
-
-
-        #region Config
-        public void SetCurrentUser(TwitchUser user) => CurrentUser = user;
-
-        public class LogSystem
-        {
-            private string dateTimeFormat = "dd.MM.yyyy - HH:mm:ss";
-            private LogLevel LogLevel = LogLevel.Information;
-
-            internal void SendMessage(string message, LogLevel level)
-            {
-                if (level < LogLevel) return;
-
-                Console.ForegroundColor = ConsoleColor.Magenta;
-                Console.Write($"[TWITCH-SHARP] ({DateTime.Now.ToString(dateTimeFormat)})");
-                switch (level)
-                {
-                    case LogLevel.Trace:
-                        Console.ForegroundColor = ConsoleColor.DarkGray;
-                        break;
-                    case LogLevel.Debug:
-                        Console.ForegroundColor = ConsoleColor.Gray;
-                        break;
-                    case LogLevel.Information:
-                        Console.ForegroundColor = ConsoleColor.White;
-                        break;
-                    case LogLevel.Warning:
-                        Console.ForegroundColor = ConsoleColor.Yellow;
-                        break;
-                    case LogLevel.Error:
-                        Console.ForegroundColor = ConsoleColor.Red;
-                        break;
-                    case LogLevel.Critical:
-                        Console.ForegroundColor = ConsoleColor.DarkRed;
-                        break;
-                }
-                Console.WriteLine(message);
-                Console.ResetColor();
-            }
-
-            public void ConfigureDateTimeFormat(string format) => dateTimeFormat = format;
-            public void ConfigureMinimumLogLevel(LogLevel level) => LogLevel = level;
-        }
     }
-
-    #endregion
 }
