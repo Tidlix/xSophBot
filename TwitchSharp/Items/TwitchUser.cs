@@ -6,6 +6,7 @@ namespace TwitchSharp.Items
     public class TwitchUser
     {
         #region Variables
+        private TwitchClient Client { get; set; }
         public string ID { get; private set; }
         public string LoginName { get; private set; }
         public string DisplayName { get; private set; }
@@ -21,6 +22,7 @@ namespace TwitchSharp.Items
 #pragma warning disable CS8618
         public TwitchUser(TwitchClient client, string user)
         {
+            Client = client;
             /*
             TwitchSharp can get a user by either the user id, or the user login name
 
@@ -32,7 +34,7 @@ namespace TwitchSharp.Items
             */
             try
             {
-                string response = getUserByLoginAsync(client, user).Result;
+                string response = getUserByLoginAsync(user).Result;
                 Convert(response);
             }
             catch (Exception ex)
@@ -41,7 +43,7 @@ namespace TwitchSharp.Items
                 {
                     try
                     {
-                        string response = getUserByIdAsync(client, user).Result;
+                        string response = getUserByIdAsync(user).Result;
                         Convert(response);
                     }
                     catch (Exception ex2)
@@ -61,13 +63,13 @@ namespace TwitchSharp.Items
             }
         }
 #pragma warning restore CS8618
-        private async Task<string> getUserByLoginAsync(TwitchClient client, string login)
+        private async Task<string> getUserByLoginAsync(string login)
         {
             using (var httpClient = new HttpClient())
             {
                 string url = $"https://api.twitch.tv/helix/users?login={login}";
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {client.GetAppAccessToken()}");
-                httpClient.DefaultRequestHeaders.Add("Client-Id", $"{client.ClientID}");
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {Client.GetAppAccessToken()}");
+                httpClient.DefaultRequestHeaders.Add("Client-Id", $"{Client.ClientID}");
                 var response = await httpClient.GetAsync(url);
 
                 switch (response.StatusCode)
@@ -83,13 +85,13 @@ namespace TwitchSharp.Items
                 }
             }
         }
-        private async Task<string> getUserByIdAsync(TwitchClient client, string id)
+        private async Task<string> getUserByIdAsync(string id)
         {
             using (var httpClient = new HttpClient())
             {
                 string url = $"https://api.twitch.tv/helix/users?id={id}";
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {client.GetAppAccessToken()}");
-                httpClient.DefaultRequestHeaders.Add("Client-Id", $"{client.ClientID}");
+                httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {Client.GetAppAccessToken()}");
+                httpClient.DefaultRequestHeaders.Add("Client-Id", $"{Client.ClientID}");
                 var response = await httpClient.GetAsync(url);
 
                 switch (response.StatusCode)
@@ -135,6 +137,12 @@ namespace TwitchSharp.Items
         }
         #endregion
 
+        #region Functions/Methods
+        public async Task SendMessageAsync(string content)
+        {
+            await Client.SendMessageAsync(content, this, null);
+        }
+        #endregion
     }
 
     #region enums

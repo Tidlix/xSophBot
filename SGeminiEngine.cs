@@ -12,7 +12,7 @@ namespace xSophBot
         private static GoogleAi GoogleAI;
 #pragma warning restore CS8618
 
-        public static async Task StartSession()
+        public static void StartSession()
         {
             GoogleAI = new GoogleAi(SConfig.AI.GeminiKey);
 
@@ -37,6 +37,10 @@ namespace xSophBot
         public static async ValueTask<string> GenerateResponseAsync(string prompt)
         {
             var response = await Session.GenerateContentAsync(prompt);
+            if (response.PromptFeedback?.BlockReason != null)
+            {
+                return $"[Blocked: {response.PromptFeedback.BlockReason}]";
+            }
             return response.Text ?? string.Empty;
         }
     }

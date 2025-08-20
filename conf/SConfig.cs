@@ -42,7 +42,7 @@ namespace xSophBot.conf
             }
             catch (Exception ex)
             {
-                Console.WriteLine("Failed to read config files", "SConfig.cs");
+                Console.WriteLine($"Failed to read config files - {ex.Message}", "SConfig.cs");
             }
         }
 

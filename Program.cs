@@ -1,4 +1,5 @@
 ﻿using TwitchSharp;
+using TwitchSharp.Events;
 using TwitchSharp.Items;
 using xSophBot.conf;
 
@@ -10,7 +11,7 @@ namespace xSophBot
         public static async Task Main(string[] args)
         {
             await SConfig.ReadConfigAsync();
-            await SGeminiEngine.StartSession();
+            SGeminiEngine.StartSession();
                 
             ClientConfig clientConfig = new()
             {
@@ -37,16 +38,30 @@ namespace xSophBot
 
             Client.EventEngine.OnMessageReceived += async (s, e) =>
             {
-                if (e.Message.Content.StartsWith("!ai "))
+                try
                 {
-                    Console.WriteLine("Got AI request: " + e.Message.Content);
-                    string response = await SGeminiEngine.GenerateResponseAsync($"{e.Message.Author.DisplayName}: {e.Message.Content}");
-                    Console.WriteLine("Responding with: " + response);
-                    await e.Message.RespondAsync(response);
+                    if (e.Message.Content.StartsWith("!ai "))
+                    {
+                        Console.WriteLine("Got AI request: " + e.Message.Content);
+                        string response = await SGeminiEngine.GenerateResponseAsync($"{e.Message.Author.DisplayName} schreibt: {e.Message.Content.Replace("!ai ", "")}");
+                        Console.WriteLine("Responding with: " + response);
+                        await e.Message.RespondAsync(response);
+                    }
                 }
-
+                catch (Exception ex)
+                {
+                    await e.Message.RespondAsync("Ein Fehler ist aufgetreten!");
+                    Console.WriteLine(ex);
+                }
             };
-            await Client.EventEngine.StartListeningForMessagesAsync(xSophe);
+            Client.EventEngine.OnFollowReceived += async (s, e) =>
+            {
+                string AImsg = await SGeminiEngine.GenerateResponseAsync($"SYSTEMNACHRICHT > {e.Follower.DisplayName} hat bei {e.Broadcaster.DisplayName} gefollowed. Schreibe eine kleine dankes Nachricht für diesen Nutzer");
+                AImsg = AImsg.Contains(e.Follower.DisplayName) ? AImsg : $"@{e.Follower.DisplayName} {AImsg}";
+                await e.Broadcaster.SendMessageAsync(AImsg);
+            };
+            await Client.EventEngine.SubscribeToEventAsnyc(xSophe, new(EventType.MessageReceived));
+            await Client.EventEngine.SubscribeToEventAsnyc(xSophe, new (EventType.FollowReceived));
 
             while (true) ;
         }

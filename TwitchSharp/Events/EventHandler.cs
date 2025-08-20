@@ -29,19 +29,25 @@ namespace TwitchSharp.Events
                     string? messageType = metadata.GetProperty("message_type").GetString();
                     if (messageType == "session_welcome")
                     {
+                        /* 
+                        Session Welcome is a message type, when the connection is established
+
+                        In this Message, the session id will be sendet, which will be used for 
+                        subscribe to new Events
+                        */
                         var payload = json.GetProperty("payload");
                         var session = payload.GetProperty("session");
                         sessionID = session.GetProperty("id").GetString()!;
 
-                        StartListeningForMessagesAsync(Client.CurrentUser).Wait();
+                        SubscribeToEventAsnyc(Client.CurrentUser, new (EventType.MessageReceived)).Wait();
                     }
-                    else if (messageType == "session_keepalive") return;
+                    else if (messageType == "session_keepalive") return; // Keeps the session alive - no further action needed
                     else HandleEvent(metadata, json);
-                    
+
                 }
-                catch (Exception ex)
+                catch 
                 {
-                    throw new Exception("Something went wrong while starting event handler", ex);
+                    throw;
                 }
             });
             ws.Start().Wait();
@@ -57,13 +63,20 @@ namespace TwitchSharp.Events
                 case "channel.chat.message":
                     OnMessageReceived.Invoke(Client, new MessageReceivedArgs(Client, json));
                     break;
+                case "channel.follow":
+                    OnFollowReceived.Invoke(Client, new FollowReceivedArgs(Client, json));
+                    break;
+
+                default:
+                    throw new NotImplementedException();
             }
         }
 
-        public event Action<TwitchClient, MessageReceivedArgs > OnMessageReceived;
+        public event Action<TwitchClient, MessageReceivedArgs> OnMessageReceived;
+        public event Action<TwitchClient, FollowReceivedArgs> OnFollowReceived;
 
 
-        public async Task StartListeningForMessagesAsync(TwitchUser user)
+        public async Task SubscribeToEventAsnyc(TwitchUser broadcaster, EventSubscription eventSubscription)
         {
             try
             {
@@ -72,11 +85,11 @@ namespace TwitchSharp.Events
                     var url = "https://api.twitch.tv/helix/eventsub/subscriptions";
 
                     var jsonContent = $@"{{
-                                ""type"": ""channel.chat.message"",
-                                ""version"": ""1"",
+                                ""type"": ""{eventSubscription.Type}"",
+                                ""version"": ""{eventSubscription.Version}"",
                                 ""condition"": {{
-                                    ""broadcaster_user_id"": ""{user.ID}"",
-                                    ""user_id"": ""{Client.CurrentUser.ID}""
+                                    ""broadcaster_user_id"": ""{broadcaster.ID}"",
+                                    ""{(eventSubscription.NeedsModerator ? "moderator_user_id" : "user_id")}"": ""{Client.CurrentUser.ID}""
                                 }},
                                 ""transport"": {{
                                     ""method"": ""websocket"",
@@ -90,13 +103,47 @@ namespace TwitchSharp.Events
                     request.Headers.Add("Client-Id", $"{Client.ClientID}");
                     request.Content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-                    await httpClient.SendAsync(request);
+                    var response = await httpClient.SendAsync(request);
+                    Console.WriteLine(await response.Content.ReadAsStringAsync());
                 }
             }
-            catch 
+            catch
             {
                 throw;
             }
         }
+    }
+    public class EventSubscription
+    {
+        public string Type { get; private set; }
+        public int Version { get; private set; }
+        public bool NeedsModerator { get; private set; }
+
+        public EventSubscription(EventType type)
+        {
+            switch (type)
+            {
+                case EventType.MessageReceived:
+                    Type = "channel.chat.message";
+                    Version = 1;
+                    NeedsModerator = false;
+                    break;
+                case EventType.FollowReceived:
+                    Type = "channel.follow";
+                    Version = 2;
+                    NeedsModerator = true;
+                    break;
+
+                default:
+                    Type = "Error - Event not Implemented yet";
+                    Version = -1;
+                    break;
+            }
+        }
+    }
+    public enum EventType
+    {
+        MessageReceived,
+        FollowReceived
     }
 }

@@ -5,20 +5,24 @@ namespace TwitchSharp.Events.Args
 {
   public class MessageReceivedArgs
   {
-    public TwitchClient Client { get; private set; }
+    private TwitchClient Client { get; set; }
     public TwitchMessage Message { get; private set; }
+    public DateTime MessageSendetAt { get; private set; }
 
     public MessageReceivedArgs(TwitchClient Client, JsonElement json)
     {
       this.Client = Client;
+
       var eventJson = json.GetProperty("payload").GetProperty("event");
       TwitchUser broadcaster = new TwitchUser(Client, eventJson.GetProperty("broadcaster_user_login").GetString()!);
       TwitchUser sender = new TwitchUser(Client, eventJson.GetProperty("chatter_user_login").GetString()!);
+
       var messageJson = eventJson.GetProperty("message");
       string content = messageJson.GetProperty("text").GetString()!;
       string messageID = eventJson.GetProperty("message_id").GetString()!;
-
       Message = new TwitchMessage(Client, sender, broadcaster, content, messageID);
+
+      MessageSendetAt = DateTime.Now;
     }
 
     /*
