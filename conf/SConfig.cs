@@ -1,20 +1,19 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using xSophBot.bot.logs;
 
-namespace xSophBot.bot.conf
+namespace xSophBot.conf
 {
-    public class xSConfig
+    public class SConfig
     {
         public static LogLevel LogLevel;
+        
         public static class Twitch
         {
 #pragma warning disable CS8618
             public static string ClientId;
             public static string ClientSecret;
-            public static string RefreshToken;
-            public static string UserName;
         }
+
         public static class AI
         {
 #pragma warning disable CS8618
@@ -27,30 +26,23 @@ namespace xSophBot.bot.conf
             try
             {
                 StreamReader sr = new StreamReader($"{AppDomain.CurrentDomain.BaseDirectory}/config/twitch.conf");
-                xSLogger.Log(LogLevel.Debug, $"Reading file: twitch.conf", "xSConfig.cs");
                 string confFile = await sr.ReadToEndAsync();
-                xSLogger.Log(LogLevel.Debug, confFile, "twitch.conf");
 
                 Twitch.ClientId = getValue(confFile, "ID");
                 Twitch.ClientSecret = getValue(confFile, "Secret");
-                Twitch.RefreshToken = getValue(confFile, "Refresh");
-                Twitch.UserName = getValue(confFile, "Username");
 
 
                 sr = new StreamReader($"{AppDomain.CurrentDomain.BaseDirectory}/config/ai.conf");
-                xSLogger.Log(LogLevel.Debug, $"Reading file: ai.conf", "xSConfig.cs");
                 confFile = await sr.ReadToEndAsync();
-                xSLogger.Log(LogLevel.Debug, confFile, "ai.conf");
-
                 AI.GeminiKey = getValue(confFile, "Gemini_Key");
+
                 sr = new StreamReader($"{AppDomain.CurrentDomain.BaseDirectory}/config/ai.promt");
-                xSLogger.Log(LogLevel.Debug, $"Reading file: ai.prompt", "xSConfig.cs");
                 confFile = await sr.ReadToEndAsync();
                 AI.SystemInstructions = confFile;
             }
             catch (Exception ex)
             {
-                xSLogger.Log(LogLevel.Critical, "Failed to read config files", "xSConfig.cs", ex);
+                Console.WriteLine($"Failed to read config files - {ex.Message}", "SConfig.cs");
             }
         }
 
