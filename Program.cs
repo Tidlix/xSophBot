@@ -15,7 +15,7 @@ namespace xSophBot
 
             LogConfig logConf = new()
             {
-                MinimalLogLevel = LogLevel.Information
+                MinimalLogLevel = LogLevel.Trace
             };
             TwitchEngine.Logs.ConfigureLogging(logConf);
 
