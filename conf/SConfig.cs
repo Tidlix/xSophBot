@@ -6,12 +6,13 @@ namespace xSophBot.conf
     public class SConfig
     {
         public static LogLevel LogLevel;
-        
+
         public static class Twitch
         {
 #pragma warning disable CS8618
             public static string ClientId;
             public static string ClientSecret;
+            public static string RefreshToken;
         }
 
         public static class AI
@@ -30,6 +31,7 @@ namespace xSophBot.conf
 
                 Twitch.ClientId = getValue(confFile, "ID");
                 Twitch.ClientSecret = getValue(confFile, "Secret");
+                Twitch.RefreshToken = getValue(confFile, "Refresh");
 
 
                 sr = new StreamReader($"{AppDomain.CurrentDomain.BaseDirectory}/config/ai.conf");

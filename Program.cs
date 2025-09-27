@@ -2,6 +2,7 @@
 using TwitchSharp;
 using TwitchSharp.Entitys;
 using TwitchSharp.Events;
+using TwitchSharp.Events.Types;
 using xSophBot.conf;
 
 namespace xSophBot
@@ -13,100 +14,55 @@ namespace xSophBot
             await SConfig.ReadConfigAsync();
             SGeminiEngine.StartSession();
 
-            LogConfig logConf = new()
-            {
-                MinimalLogLevel = LogLevel.Trace
-            };
-            TwitchEngine.Logs.ConfigureLogging(logConf);
+            TwitchSharpEngine.ModifyEngine(TwitchSharpEngine.ConsoleLevel.Information, true, true);
 
-            ManualTwitchClientConfig clientConf = new()
+
+            TwitchClientConfig clientConf = new()
             {
                 ClientID = SConfig.Twitch.ClientId,
                 ClientSecret = SConfig.Twitch.ClientSecret,
-                RedirectUri = "https://localhost:3000",
-                Username = "xsophbot",
-                Scopes = [
-                    "user:bot",
-                    "user:read:chat",
-                    "user:write:chat",
-                    "user:read:whispers",
-                    "user:manage:whispers"
-                ]
+                RefreshToken = SConfig.Twitch.RefreshToken,
             };
+            TwitchClient client = new TwitchClient(clientConf);
+            TwitchEventHandler events = client.UseEvents();
 
-            TwitchClient Client = TwitchEngine.CreateTwitchClient(clientConf);
-            TwitchUser xSophe = new TwitchUser("xsophe");
-            Client.OnReady += async (s) =>
+            TwitchUser xSophe = await client.GetUserByLoginAsync("xsophe");
+
+            events.OnChannelStreamOnline += async (s, e) =>
             {
-                await xSophe.SendMessageAsync("xSophBot is now ready!");
-                Console.Clear();
-                TwitchEngine.Logs.Log("Client ready and running!", LogLevel.Information);
+                await e.Broadcaster.SendChatMessageAsync("1.");
             };
-            await Client.StartAsync();
-
-            EventConfig eventConf = new()
+            events.OnChannelStreamOffline += async (s, e) =>
             {
-                Client = Client,
-                Subscriptions = [
-                    new EventSubscription(EventType.ChannelMessageReceived, xSophe),
-                    new EventSubscription(EventType.ChannelFollowReceived, xSophe),
-                    new EventSubscription(EventType.PrivateMessageReceived)
-                ]
+                await e.Broadcaster.SendChatMessageAsync("1. (im offline Chat)");
             };
-            EventEngine Events = TwitchEngine.UseEvents(eventConf);
-
-            Events.OnChannelMessageReceived += async (s, e) =>
+            events.OnClientWhisperReceived += async (s, e) =>
             {
-                if (e.MessageContent.StartsWith("!ai "))
+                string response = await SGeminiEngine.GenerateResponseAsync($"{e.Sender.DisplayName} schreibt im Privaten: \"{e.MessageContent}\"");
+                await e.Sender.SendWhisperAsync(response);
+            };
+            events.OnChannelChatMessageReceived += async (s, e) =>
+            {
+                if (e.MessageContent.StartsWith("!ai ") || e.MessageContent.ToLower().StartsWith($"@{s.CurrentUser.LoginName}"))
                 {
-                    try
-                    {
-                        TwitchEngine.Logs.Log("Got AI request: " + e.MessageContent, LogLevel.Debug);
-                        string response = await SGeminiEngine.GenerateResponseAsync($"{e.Chatter.DisplayName} schreibt: {e.MessageContent.Replace("!ai ", "")}");
-                        TwitchEngine.Logs.Log("Responding with: " + response, LogLevel.Debug);
-                        await e.Broadcaster.SendMessageAsync(response, e.MessageID);
-                    }
-                    catch (Exception ex)
-                    {
-                        await e.Broadcaster.SendMessageAsync("Ein Fehler ist aufgetreten!", e.MessageID);
-                        TwitchEngine.Logs.Log("Couldn't respond to AI command", LogLevel.Error, ex);
-                    }
+                    string response = await SGeminiEngine.GenerateResponseAsync($"{e.Chatter.DisplayName} schreibt bei {e.Broadcaster.DisplayName}: \"{e.MessageContent}\"");
+                    await e.Broadcaster.SendChatMessageAsync(response, e.MessageID);
                 }
             };
-            Events.OnChannelFollowReceived += async (s, e) =>
+            events.OnChannelFollowReceived += async (s, e) =>
             {
-                try
-                {
-                    TwitchEngine.Logs.Log("Got AI Follower request: ", LogLevel.Debug);
-                    string AImsg = await SGeminiEngine.GenerateResponseAsync($"SYSTEMNACHRICHT > {e.Follower.DisplayName} hat bei {e.Broadcaster.DisplayName} gefollowed. Schreibe eine kleine dankes Nachricht für diesen Nutzer");
-                    AImsg = AImsg.Contains(e.Follower.DisplayName) ? AImsg : $"@{e.Follower.DisplayName} {AImsg}";
-                    TwitchEngine.Logs.Log("Responding with: " + AImsg, LogLevel.Debug);
-                    await e.Broadcaster.SendMessageAsync(AImsg);
-                }
-                catch (Exception ex)
-                {
-                    await e.Broadcaster.SendMessageAsync("Ein Fehler ist aufgetreten!");
-                    TwitchEngine.Logs.Log("Couldn't generate to AI Follow message", LogLevel.Error, ex);
-                }
-
-            };
-            Events.OnPrivateMessageReceived += async (s, e) =>
-            {
-                try
-                {
-                    TwitchEngine.Logs.Log("Got private AI request: " + e.MessageContent, LogLevel.Debug);
-                    string response = await SGeminiEngine.GenerateResponseAsync($"{e.Sender.DisplayName} schreibt (privat): {e.MessageContent}");
-                    TwitchEngine.Logs.Log("Responding with: " + response, LogLevel.Debug);
-                    await e.Sender.SendWhisperAsync(response);
-                }
-                catch (Exception ex)
-                {
-                    await e.Sender.SendWhisperAsync("Ein Fehler ist aufgetreten!");
-                    TwitchEngine.Logs.Log("Couldn't respond to private AI request", LogLevel.Error, ex);
-                }
+                string msg = await SGeminiEngine.GenerateResponseAsync($"SYSTEM > @{e.Follower.DisplayName} hat gerade ein Follow bei {e.Broadcaster.DisplayName} da gelassen! Schreibe dem Nutzer eine kreative Dankesnachricht!");
+                await e.Broadcaster.SendChatMessageAsync(msg);
             };
 
-            await Events.StartListeningAsync();
+            await events.SubscribeToEventAsync(new ChannelStreamOnlineEvent(xSophe));
+            await events.SubscribeToEventAsync(new ChannelStreamOfflineEvent(xSophe));
+            await events.SubscribeToEventAsync(new ChannelFollowReceivedEvent(xSophe));
+            await events.SubscribeToEventAsync(new ChannelChatMessageReceivedEvent(xSophe));
+            await events.SubscribeToEventAsync(new ClientWhisperReceivedEvent());
+
+            TwitchSharpEngine.SendConsole("Client is now Online!", TwitchSharpEngine.ConsoleLevel.Information);
+
             while (true) ;
         }
     }

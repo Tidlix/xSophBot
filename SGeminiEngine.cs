@@ -18,14 +18,14 @@ namespace xSophBot
 
             var safetySettings = new List<SafetySetting>()
             {
-                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_HARASSMENT, Threshold = HarmBlockThreshold.BLOCK_ONLY_HIGH },
-                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_HATE_SPEECH, Threshold = HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_TOXICITY, Threshold = HarmBlockThreshold.BLOCK_NONE },
-                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_DANGEROUS, Threshold = HarmBlockThreshold.BLOCK_ONLY_HIGH },
+                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_HARASSMENT, Threshold = HarmBlockThreshold.OFF },
+                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_HATE_SPEECH, Threshold = HarmBlockThreshold.OFF },
+                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_TOXICITY, Threshold = HarmBlockThreshold.OFF },
+                new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_DANGEROUS, Threshold = HarmBlockThreshold.OFF },
                 new SafetySetting() { Category = HarmCategory.HARM_CATEGORY_UNSPECIFIED, Threshold = HarmBlockThreshold.OFF }
             };
 
-            var model = GoogleAI.CreateGenerativeModel("models/gemini-2.5-flash", safetyRatings: safetySettings);
+            var model = GoogleAI.CreateGenerativeModel("models/gemini-2.5-flash"/*, safetyRatings: safetySettings*/);
 
             ThinkingConfig thinkConf = new ThinkingConfig
             {
@@ -35,14 +35,14 @@ namespace xSophBot
             GenerationConfig genConf = new GenerationConfig
             {
                 ThinkingConfig = thinkConf,
-                Temperature = 2
+                Temperature = 1
             };
 
-            string SystemInstructions = SConfig.AI.SystemInstructions;
-            
+            string systemInstructions = SConfig.AI.SystemInstructions;
+            model.UseGoogleSearch = true;
 
 
-            Session = model.StartChat(config: genConf, systemInstruction: SystemInstructions);
+            Session = model.StartChat(config: genConf, systemInstruction: systemInstructions);
         }
 
         public static async ValueTask<string> GenerateResponseAsync(string prompt)
@@ -50,7 +50,7 @@ namespace xSophBot
             var response = await Session.GenerateContentAsync(prompt);
             if (response.PromptFeedback?.BlockReason != null)
             {
-                return $"[Blocked: {response.PromptFeedback.BlockReason}]";
+                return $"[Response Blocked: {response.PromptFeedback.BlockReason}]";
             }
             return response.Text ?? string.Empty;
         }
