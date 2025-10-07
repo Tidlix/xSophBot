@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using GeminiTest;
+using Microsoft.Extensions.Logging;
 using TwitchSharp;
 using TwitchSharp.Entitys;
 using TwitchSharp.Events;
@@ -12,7 +13,7 @@ namespace xSophBot
         public static async Task Main(string[] args)
         {
             await SConfig.ReadConfigAsync();
-            SGeminiEngine.StartSession();
+            GeminiEngine.Initialize(SConfig.AI.GeminiKey);
 
             TwitchSharpEngine.ModifyEngine(TwitchSharpEngine.ConsoleLevel.Information, true, true);
 
@@ -38,20 +39,20 @@ namespace xSophBot
             };
             events.OnClientWhisperReceived += async (s, e) =>
             {
-                string response = await SGeminiEngine.GenerateResponseAsync($"{e.Sender.DisplayName} schreibt im Privaten: \"{e.MessageContent}\"");
+                string response = await GeminiEngine.GenerateResponseAsync(new AiRequest(e.Sender, e.MessageContent, true));
                 await e.Sender.SendWhisperAsync(response);
             };
             events.OnChannelChatMessageReceived += async (s, e) =>
             {
                 if (e.MessageContent.StartsWith("!ai ") || e.MessageContent.ToLower().StartsWith($"@{s.CurrentUser.LoginName}"))
                 {
-                    string response = await SGeminiEngine.GenerateResponseAsync($"{e.Chatter.DisplayName} schreibt bei {e.Broadcaster.DisplayName}: \"{e.MessageContent}\"");
+                    string response = await GeminiEngine.GenerateResponseAsync(new AiRequest(e.Chatter, e.MessageContent, false));
                     await e.Broadcaster.SendChatMessageAsync(response, e.MessageID);
                 }
             };
             events.OnChannelFollowReceived += async (s, e) =>
             {
-                string msg = await SGeminiEngine.GenerateResponseAsync($"SYSTEM > @{e.Follower.DisplayName} hat gerade ein Follow bei {e.Broadcaster.DisplayName} da gelassen! Schreibe dem Nutzer eine kreative Dankesnachricht!");
+                string msg = await GeminiEngine.GenerateResponseAsync(new ($"@{e.Follower.DisplayName} hat gerade ein Follow bei {e.Broadcaster.DisplayName} da gelassen! Schreibe dem Nutzer eine kreative Dankesnachricht!"));
                 await e.Broadcaster.SendChatMessageAsync(msg);
             };
 
