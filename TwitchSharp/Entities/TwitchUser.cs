@@ -3,20 +3,32 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Websocket.Client;
 
-namespace TwitchSharp.Entitys
+namespace TwitchSharp.Entities
 {
+    /// <summary>
+    /// Represents a Twitch user with their basic information and capabilities
+    /// </summary>
     public class TwitchUser
     {
         #region Variables / Initialization
         private TwitchClient _Client { get; set; }
+        /// <summary>Unique identifier for the Twitch user</summary>
         public string ID { get; private set; }
+        /// <summary>Username in lowercase used for login</summary>
         public string LoginName { get; private set; }
+        /// <summary>Display name shown in chat and UI</summary>
         public string DisplayName { get; private set; }
+        /// <summary>Type of user (Admin, GlobalMod, Staff, Normal)</summary>
         public TwitchUserType UserType { get; private set; }
+        /// <summary>Broadcaster status (Affiliate, Partner, Normal)</summary>
         public TwitchBroadcasterType BroadcasterType { get; private set; }
+        /// <summary>User's channel description/bio</summary>
         public string Description { get; private set; }
+        /// <summary>URL to user's profile image</summary>
         public string ProfileImageUrl { get; private set; }
+        /// <summary>URL to user's offline banner image</summary>
         public string OfflineImageUrl { get; private set; }
+        /// <summary>Account creation date</summary>
         public DateTime CreatedAt { get; private set; }
 
         public TwitchUser(TwitchClient client, JsonElement data)
@@ -110,6 +122,9 @@ namespace TwitchSharp.Entitys
         #endregion
     }
     #region Enums
+    /// <summary>
+    /// Defines the administrative level of a Twitch user
+    /// </summary>
     public enum TwitchUserType
     {
         Admin,      // Twitch Admin
@@ -117,6 +132,10 @@ namespace TwitchSharp.Entitys
         Staff,      // Twitch Staff
         Normal      // Twitch User
     }
+
+    /// <summary>
+    /// Defines the monetization status of a broadcaster
+    /// </summary>
     public enum TwitchBroadcasterType
     {
         Affiliate,

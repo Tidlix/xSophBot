@@ -2,19 +2,29 @@ using System.Net;
 using System.Text.Json;
 using System.Web;
 using Microsoft.VisualBasic;
-using TwitchSharp.Entitys;
+using TwitchSharp.Entities;
 using TwitchSharp.Events;
 
 namespace TwitchSharp
 {
+    /// <summary>
+    /// Main client for interacting with Twitch API
+    /// Handles authentication and provides access to various Twitch features
+    /// </summary>
     public class TwitchClient
     {
         #region Variables
+        /// <summary>Application's Twitch Client ID</summary>
         public string ClientID { get; private set; }
+        /// <summary>Currently authenticated user</summary>
         public TwitchUser CurrentUser { get; private set; }
+        /// <summary>Client secret for API authentication</summary>
         private string _ClientSecret { get; set; }
+        /// <summary>OAuth refresh token for user authentication</summary>
         private string _RefreshToken { get; set; }
+        /// <summary>App access token for application-level API calls</summary>
         private string _AppAccessToken { get; set; }
+        /// <summary>User access token for user-specific API calls</summary>
         private string _UserAccessToken { get; set; }
         #endregion
 
@@ -184,10 +194,16 @@ namespace TwitchSharp
         #endregion
     }
 
+    /// <summary>
+    /// Configuration class for initializing TwitchClient
+    /// </summary>
     public class TwitchClientConfig
     {
+        /// <summary>Twitch application Client ID</summary>
         public required string ClientID { get; set; }
+        /// <summary>Twitch application Client Secret</summary>
         public required string ClientSecret { get; set; }
+        /// <summary>OAuth refresh token for user authentication</summary>
         public required string RefreshToken { get; set; }
     }
 }

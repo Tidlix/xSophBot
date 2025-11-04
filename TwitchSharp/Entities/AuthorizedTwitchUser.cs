@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace TwitchSharp.Entitys
+namespace TwitchSharp.Entities
 {
     public class AuthorizedTwitchUser : TwitchUser
     {

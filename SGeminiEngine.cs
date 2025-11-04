@@ -1,5 +1,5 @@
 using System.ComponentModel;
-using TwitchSharp.Entitys;
+using TwitchSharp.Entities;
 using GenerativeAI;
 using GenerativeAI.Types;
 using GenerativeAI.Tools;

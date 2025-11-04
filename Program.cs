@@ -1,7 +1,7 @@
 ﻿using GeminiTest;
 using Microsoft.Extensions.Logging;
 using TwitchSharp;
-using TwitchSharp.Entitys;
+using TwitchSharp.Entities;
 using TwitchSharp.Events;
 using TwitchSharp.Events.Types;
 using xSophBot.conf;
@@ -15,7 +15,7 @@ namespace xSophBot
             await SConfig.ReadConfigAsync();
             GeminiEngine.Initialize(SConfig.AI.GeminiKey);
 
-            TwitchSharpEngine.ModifyEngine(TwitchSharpEngine.ConsoleLevel.Information, true, true);
+            TwitchSharpEngine.ModifyEngine(TwitchSharpEngine.ConsoleLevel.Trace, true, true);
 
 
             TwitchClientConfig clientConf = new()
@@ -62,6 +62,7 @@ namespace xSophBot
             await events.SubscribeToEventAsync(new ChannelChatMessageReceivedEvent(xSophe));
             await events.SubscribeToEventAsync(new ClientWhisperReceivedEvent());
 
+            await xSophe.SendChatMessageAsync("Bot ist Online!");
             TwitchSharpEngine.SendConsole("Client is now Online!", TwitchSharpEngine.ConsoleLevel.Information);
 
             while (true) ;

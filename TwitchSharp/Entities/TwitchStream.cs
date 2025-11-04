@@ -1,17 +1,28 @@
 using System.Net;
 using System.Text.Json;
 
-namespace TwitchSharp.Entitys
+namespace TwitchSharp.Entities
 {
+    /// <summary>
+    /// Represents a live Twitch stream with its associated metadata
+    /// </summary>
     public class TwitchStream
     {
+        /// <summary>Unique identifier for the stream</summary>
         public string ID { get; private set; }
+        /// <summary>The user broadcasting the stream</summary>
         public TwitchUser Broadcaster { get; private set; }
+        /// <summary>ID of the game being played</summary>
         public string GameID { get; private set; }
+        /// <summary>Name of the game being played</summary>
         public string GameName { get; private set; }
+        /// <summary>Title of the stream</summary>
         public string Title { get; private set; }
+        /// <summary>Stream tags set by the broadcaster</summary>
         public string[] Tags { get; private set; }
+        /// <summary>Current number of viewers</summary>
         public int CurrentViewer { get; private set; }
+        /// <summary>When the stream started</summary>
         public DateTime StartedAt { get; private set; }
         public bool IsMature { get; private set; }
         private string _ThumbnailUrl { get; set; }

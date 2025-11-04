@@ -1,5 +1,5 @@
 using System.Text.Json;
-using TwitchSharp.Entitys;
+using TwitchSharp.Entities;
 
 namespace TwitchSharp.Events.Types
 {
